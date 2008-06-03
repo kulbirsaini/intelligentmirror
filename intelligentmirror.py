@@ -17,6 +17,7 @@
 # (C) Copyright 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
 #
 
+import logging
 import os
 import os.path
 import rfc822
@@ -32,19 +33,16 @@ cache_dir = '/var/spool/squid/yum/'
 cache_url = 'http://172.17.8.175/yum/'
 logfile = '/var/spool/squid/yum/im.log'
 redirect = '303'
+format = '%-12s %s'
 
-def log(str):
-    """Write a string to the logfile."""
-    file = open(logfile, 'a')
-    file.write(str)
-    file.close()
-    return
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s', filename=logfile, filemode='a')
+log = logging.info
 
 def download_from_source(url, path, mode):
     """This function downloads the file from remote source and caches it."""
     file = urlgrabber.urlgrab(url, path)
     os.chmod(file, mode)
-    log(time.ctime() + ' : ' + 'DOWNLOAD Package was downloaded and cached.\n')
+    log(format%('DOWNLOAD', 'Package was downloaded and cached.'))
     return
 
 def yum_part(url, query):
@@ -54,24 +52,24 @@ def yum_part(url, query):
     mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
     path = cache_dir + query
     if os.path.isfile(path):
-        log(time.ctime() + ' : ' + 'CACHE_HIT Requested package was found in cache.\n')
+        log(format%('CACHE_HIT', 'Requested package was found in cache.'))
         modified_time = os.stat(path).st_mtime
         remote_file = urlgrabber.urlopen(url)
         remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
         remote_file.close()
         if remote_time > modified_time:
-            log(time.ctime() + ' : ' + 'REFRESH_MISS Requested package was older.\n')
+            log(format%('REFRESH_MISS', 'Requested package was older.'))
             # If remote file is newer, delete the local file from cache and cache the new one
             os.unlink(path)
             download_from_source(url, path, mode)
             return redirect + ':' + cache_url + query
         cur_mode = os.stat(path)[stat.ST_MODE]
         if stat.S_IMODE(cur_mode) == mode:
-            log(time.ctime() + ' : ' + 'REFRESH_HIT Requested package was uptodate.\n')
+            log(format%('REFRESH_HIT', 'Requested package was uptodate.'))
             return redirect + ':' + cache_url + query
     else:
         try:
-            log(time.ctime() + ' : ' + 'CACHE_MISS Requested package was found in cache.\n')
+            log(format%('CACHE_MISS', 'Requested package was found in cache.'))
             download_from_source(url, path, mode)
             return redirect + ':' + cache_url + query
         except:
@@ -84,27 +82,27 @@ def squid_part():
         # Read url from stdin ( this is provided by squid)
         url = sys.stdin.readline().strip().split(' ')
         new_url = '\n';
-        log(time.ctime() + ' : ' + '=== BEGIN request for ' + url[0] + ' ===\n')
+        log(format%('---BEGIN---', 'Request for ' + url[0]))
         # Retrieve the basename from the request url
         path = urlparse.urlsplit(url[0])[2]
         query = os.path.basename(path)
         # If requested url is already a cache url, no need to check.
         # DONT REMOVE THIS CHECK, OTHERWISE IT WILL RESULT IN INFINITE LOOP.
         if url[0].startswith(cache_url):
-            log(time.ctime() + ' : ' + 'URL_IGNORE Already a URL from cache.\n')
+            log(format%('URL_IGNORE', 'Already a URL from cache.'))
             pass
         else:
             for file in relevant_files:
                 if query.endswith(file):
                     # This signifies that URL is a rpm package
-                    log(time.ctime() + ' : ' + 'URL_HIT Requested URL is of interest.\n')
+                    log(format%('URL_HIT', 'Requested URL is of interest.'))
                     new_url = yum_part(url[0], query) + new_url
                     break
             else:
-                log(time.ctime() + ' : ' + 'URL_MISS Requested URL is of no interest.\n')
+                log(format%('URL_MISS', 'Requested URL is of no interest.'))
                 pass
         # Flush the new url to stdout for squid to process
-        log(time.ctime() + ' : ' + '=== END request for ' + url[0] + ' ===\n')
+        log(format%('----END----', 'Request for ' + url[0]))
         sys.stdout.write(new_url)
         sys.stdout.flush()
 
@@ -113,23 +111,23 @@ def cmd_squid_part():
     while True:
         url = sys.argv[1].split(' ')
         new_url = '\n';
-        log(time.ctime() + ' : ' + '=== BEGIN request for ' + url[0] + ' ===\n')
+        log(format%('---BEGIN---', 'Request for ' + url[0]))
         path = urlparse.urlsplit(url[0])[2]
         query = os.path.basename(path)
         # If requested url is already a cache url, no need to screw things.
         if url[0].startswith(cache_url):
-            log(time.ctime() + ' : ' + 'URL_IGNORE Already a URL from cache.\n')
+            log(format%('URL_IGNORE', 'Already a URL from cache.'))
             pass
         else:
             for file in relevant_files:
                 if query.endswith(file):
-                    log(time.ctime() + ' : ' + 'URL_HIT Requested URL is of interest.\n')
+                    log(format%('URL_HIT', 'Requested URL is of interest.'))
                     new_url = yum_part(url[0], query) + new_url
                     break
             else:
-                log(time.ctime() + ' : ' + 'URL_MISS Requested URL is of no interest.\n')
+                log(format%('URL_MISS', 'Requested URL is of no interest.'))
                 pass
-        log(time.ctime() + ' : ' + '=== END request for ' + url[0] + ' ===\n')
+        log(format%('----END----', 'Request for ' + url[0]))
         print 'new url:', new_url
         break
 
