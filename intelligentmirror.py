@@ -35,7 +35,10 @@ logfile = '/var/spool/squid/yum/im.log'
 redirect = '303'
 format = '%-12s %s'
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s', filename=logfile, filemode='a')
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(message)s',
+                    filename=logfile,
+                    filemode='a')
 log = logging.info
 
 def download_from_source(url, path, mode):
@@ -46,38 +49,51 @@ def download_from_source(url, path, mode):
     return
 
 def yum_part(url, query):
-    """This function check whether a package is in cache or not. If not, it fetches it from the remote source and cache it and also streams it the client."""
+    """This function check whether a package is in cache or not. If not, it
+    fetches it from the remote source and cache it and also streams it the client."""
     # The expected mode of the cached file, so that it is readable by apache
     # to stream it to the client.
     mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
     path = cache_dir + query
     if os.path.isfile(path):
         log(format%('CACHE_HIT', 'Requested package was found in cache.'))
-        modified_time = os.stat(path).st_mtime
-        remote_file = urlgrabber.urlopen(url)
-        remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
-        remote_file.close()
-        if remote_time > modified_time:
-            log(format%('REFRESH_MISS', 'Requested package was older.'))
-            # If remote file is newer, delete the local file from cache and cache the new one
-            os.unlink(path)
-            download_from_source(url, path, mode)
-            return redirect + ':' + cache_url + query
+        try:
+            modified_time = os.stat(path).st_mtime
+            remote_file = urlgrabber.urlopen(url)
+            remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
+            remote_file.close()
+            if remote_time > modified_time:
+                log(format%('REFRESH_MISS', 'Requested package was older.'))
+                # If remote file is newer, delete the local file from cache and cache the new one
+                os.unlink(path)
+                download_from_source(url, path, mode)
+                return redirect + ':' + cache_url + query
+            else:
+                log(format%('REFRESH_HIT', 'Cached package was uptodate.'))
+        except urlgrabber.grabber.URLGrabError, e:
+            log(format%('URLError', 'Could not retrieve timestamp for remote package. Trying to serve from cache.'))
+            pass
+
         cur_mode = os.stat(path)[stat.ST_MODE]
         if stat.S_IMODE(cur_mode) == mode:
-            log(format%('REFRESH_HIT', 'Requested package was uptodate.'))
+            log(format%('CACHE_SERVE', 'Package was served from cache.'))
             return redirect + ':' + cache_url + query
     else:
         try:
             log(format%('CACHE_MISS', 'Requested package was found in cache.'))
             download_from_source(url, path, mode)
             return redirect + ':' + cache_url + query
-        except:
+        except urlgrabber.grabber.URLGrabError, e:
+            log(format%('URLError', 'An error occured while retrieving the package.'))
             pass
     return url
 
 def squid_part():
-    """This function will tap requests from squid. If the request is for rpm packages, they will be forwarded to function yum_part() for further processing. Finally this function will flush a cache url if package found in cache or a blank line in case on a miss to stdout. This is the only function where we deal with squid, rest of the program/project doesn't interact with squid at all."""
+    """This function will tap requests from squid. If the request is for rpm
+    packages, they will be forwarded to function yum_part() for further processing.
+    Finally this function will flush a cache url if package found in cache or a
+    blank line in case on a miss to stdout. This is the only function where we deal
+    with squid, rest of the program/project doesn't interact with squid at all."""
     while True:
         # Read url from stdin ( this is provided by squid)
         url = sys.stdin.readline().strip().split(' ')
@@ -107,7 +123,11 @@ def squid_part():
         sys.stdout.flush()
 
 def cmd_squid_part():
-    """This function will tap requests from squid. If the request is for rpm packages, they will be forwarded to function yum_part() for further processing. Finally this function will flush a cache url if package found in cache or a blank line in case on a miss to stdout. This is the only function where we deal with squid, rest of the program/project doesn't interact with squid at all."""
+    """This function will tap requests from squid. If the request is for rpm
+    packages, they will be forwarded to function yum_part() for further processing.
+    Finally this function will flush a cache url if package found in cache or a
+    blank line in case on a miss to stdout. This is the only function where we deal
+    with squid, rest of the program/project doesn't interact with squid at all."""
     while True:
         url = sys.argv[1].split(' ')
         new_url = '\n';
