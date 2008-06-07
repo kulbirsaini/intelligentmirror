@@ -19,7 +19,6 @@
 
 import logging
 import os
-import os.path
 import rfc822
 import stat
 import sys
@@ -31,7 +30,7 @@ relevant_files = ['.rpm'] #, 'repomd.xml', 'primary.sqlite.bz2', 'primary.xml.gz
 
 cache_dir = '/var/spool/squid/yum/'
 cache_url = 'http://172.17.8.175/yum/'
-logfile = '/var/spool/squid/yum/im.log'
+logfile = '/var/spool/squid/yum/intelligentmirror.log'
 redirect = '303'
 format = '%-12s %s'
 
@@ -40,6 +39,32 @@ logging.basicConfig(level=logging.DEBUG,
                     filename=logfile,
                     filemode='a')
 log = logging.info
+
+def fork(f):
+    """Generator for creating a forked process
+    from a function"""
+    # Perform double fork
+    r = ''
+    if os.fork(): # Parent
+        # Return a function
+        return  lambda *x, **kw: r 
+
+    # Otherwise, we are the child 
+    # Perform second fork
+    os.setsid()
+    os.umask(077)
+    os.chdir('/')
+    if os.fork():
+        os._exit(0) 
+
+    def wrapper(*args, **kwargs):
+        """Wrapper function to be returned from generator.
+        Executes the function bound to the generator and then
+        exits the process"""
+        f(*args, **kwargs)
+        os._exit(0)
+
+    return wrapper
 
 def download_from_source(url, path, mode):
     """This function downloads the file from remote source and caches it."""
@@ -58,16 +83,21 @@ def yum_part(url, query):
     if os.path.isfile(path):
         log(format%('CACHE_HIT', 'Requested package was found in cache.'))
         try:
+            local_size = os.stat(path).st_size
             modified_time = os.stat(path).st_mtime
             remote_file = urlgrabber.urlopen(url)
+            remote_size = remote_file.info().get('content-length')
             remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
             remote_file.close()
-            if remote_time > modified_time:
+            if local_size != remote_size:
+                # File is still being downloaded
+                return ''
+            elif remote_time > modified_time:
                 log(format%('REFRESH_MISS', 'Requested package was older.'))
-                # If remote file is newer, delete the local file from cache and cache the new one
-                os.unlink(path)
-                download_from_source(url, path, mode)
-                return redirect + ':' + cache_url + query
+                # If remote file is newer, cache the new one
+                forked = fork(download_from_source)
+                forked(url, path, mode)
+                return ''
             else:
                 log(format%('REFRESH_HIT', 'Cached package was uptodate.'))
         except urlgrabber.grabber.URLGrabError, e:
@@ -81,12 +111,13 @@ def yum_part(url, query):
     else:
         try:
             log(format%('CACHE_MISS', 'Requested package was found in cache.'))
-            download_from_source(url, path, mode)
-            return redirect + ':' + cache_url + query
+            forked = fork(download_from_source)
+            forked(url, path, mode)
+            return ''
         except urlgrabber.grabber.URLGrabError, e:
             log(format%('URLError', 'An error occured while retrieving the package.'))
             pass
-    return url
+    return ''
 
 def squid_part():
     """This function will tap requests from squid. If the request is for rpm
