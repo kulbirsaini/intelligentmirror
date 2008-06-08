@@ -32,7 +32,7 @@ cache_dir = '/var/spool/squid/yum/'
 cache_url = 'http://172.17.8.175/yum/'
 logfile = '/var/spool/squid/yum/intelligentmirror.log'
 redirect = '303'
-format = '%-12s %s'
+format = '%-13s %s'
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s',
@@ -70,7 +70,7 @@ def download_from_source(url, path, mode):
     """This function downloads the file from remote source and caches it."""
     file = urlgrabber.urlgrab(url, path)
     os.chmod(file, mode)
-    log(format%('DOWNLOAD', 'Package was downloaded and cached.'))
+    log(format%('DOWNLOAD', os.path.basename(path) + ': Package was downloaded and cached.'))
     return
 
 def yum_part(url, query):
@@ -81,41 +81,44 @@ def yum_part(url, query):
     mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
     path = cache_dir + query
     if os.path.isfile(path):
-        log(format%('CACHE_HIT', 'Requested package was found in cache.'))
+        log(format%('CACHE_HIT', os.path.basename(path) + ': Requested package was found in cache.'))
         try:
             local_size = os.stat(path).st_size
             modified_time = os.stat(path).st_mtime
             remote_file = urlgrabber.urlopen(url)
-            remote_size = remote_file.info().get('content-length')
+            remote_size = int(remote_file.info().get('content-length'))
             remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
             remote_file.close()
+            log(format%('LOCAL_SIZE', os.path.basename(path) + ': ' + str(local_size)))
+            log(format%('REMOTE_SIZE', os.path.basename(path) + ': ' + str(remote_size)))
             if local_size != remote_size:
+                log(format%('SIZE_MISMATCH', os.path.basename(path) + ': Package is still being downloaded.'))
                 # File is still being downloaded
                 return ''
             elif remote_time > modified_time:
-                log(format%('REFRESH_MISS', 'Requested package was older.'))
+                log(format%('REFRESH_MISS', os.path.basename(path) + ': Requested package was older.'))
                 # If remote file is newer, cache the new one
                 forked = fork(download_from_source)
                 forked(url, path, mode)
                 return ''
             else:
-                log(format%('REFRESH_HIT', 'Cached package was uptodate.'))
+                log(format%('REFRESH_HIT', os.path.basename(path) + ': Cached package was uptodate.'))
         except urlgrabber.grabber.URLGrabError, e:
-            log(format%('URLError', 'Could not retrieve timestamp for remote package. Trying to serve from cache.'))
+            log(format%('URLError', os.path.basename(path) + ': Could not retrieve timestamp for remote package. Trying to serve from cache.'))
             pass
 
         cur_mode = os.stat(path)[stat.ST_MODE]
         if stat.S_IMODE(cur_mode) == mode:
-            log(format%('CACHE_SERVE', 'Package was served from cache.'))
+            log(format%('CACHE_SERVE', os.path.basename(path) + ': Package was served from cache.'))
             return redirect + ':' + cache_url + query
     else:
         try:
-            log(format%('CACHE_MISS', 'Requested package was found in cache.'))
+            log(format%('CACHE_MISS', os.path.basename(path) + ': Requested package was not found in cache.'))
             forked = fork(download_from_source)
             forked(url, path, mode)
             return ''
         except urlgrabber.grabber.URLGrabError, e:
-            log(format%('URLError', 'An error occured while retrieving the package.'))
+            log(format%('URLError', os.path.basename(path) + ': An error occured while retrieving the package.'))
             pass
     return ''
 
@@ -129,7 +132,6 @@ def squid_part():
         # Read url from stdin ( this is provided by squid)
         url = sys.stdin.readline().strip().split(' ')
         new_url = '\n';
-        log(format%('---BEGIN---', 'Request for ' + url[0]))
         # Retrieve the basename from the request url
         path = urlparse.urlsplit(url[0])[2]
         query = os.path.basename(path)
@@ -142,14 +144,13 @@ def squid_part():
             for file in relevant_files:
                 if query.endswith(file):
                     # This signifies that URL is a rpm package
-                    log(format%('URL_HIT', 'Requested URL is of interest.'))
+                    log(format%('URL_HIT', url[0]))
                     new_url = yum_part(url[0], query) + new_url
+                    log(format%('NEW_URL', new_url.strip('\n')))
                     break
             else:
-                log(format%('URL_MISS', 'Requested URL is of no interest.'))
                 pass
         # Flush the new url to stdout for squid to process
-        log(format%('----END----', 'Request for ' + url[0]))
         sys.stdout.write(new_url)
         sys.stdout.flush()
 
@@ -162,7 +163,6 @@ def cmd_squid_part():
     while True:
         url = sys.argv[1].split(' ')
         new_url = '\n';
-        log(format%('---BEGIN---', 'Request for ' + url[0]))
         path = urlparse.urlsplit(url[0])[2]
         query = os.path.basename(path)
         # If requested url is already a cache url, no need to screw things.
@@ -172,14 +172,14 @@ def cmd_squid_part():
         else:
             for file in relevant_files:
                 if query.endswith(file):
-                    log(format%('URL_HIT', 'Requested URL is of interest.'))
+                    log(format%('URL_HIT', url[0]))
                     new_url = yum_part(url[0], query) + new_url
+                    log(format%('NEW_URL', new_url.strip('\n')))
                     break
             else:
                 log(format%('URL_MISS', 'Requested URL is of no interest.'))
                 pass
-        log(format%('----END----', 'Request for ' + url[0]))
-        print 'new url:', new_url
+        print 'new url:', new_url,
         break
 
 if __name__ == '__main__':
