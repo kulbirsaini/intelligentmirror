@@ -17,6 +17,7 @@
 # (C) Copyright 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
 #
 
+from config import readMainConfig, readStartupConfig
 import logging
 import os
 import rfc822
@@ -26,11 +27,15 @@ import time
 import urlgrabber
 import urlparse
 
+# To modify configuration parameters, see /etc/sysconfig/intelligentmirror.conf .
+# Read config file using Yum's config parsers.
+mainconf = readMainConfig(readStartupConfig('/etc/sysconfig/intelligentmirror.conf', '/'))
+
 relevant_files = ['.rpm'] #, 'repomd.xml', 'primary.sqlite.bz2', 'primary.xml.gz', 'filelists.sqlite.bz2', 'filelists.xml.gz', 'other.sqlite.bz2', 'other.xml.gz', 'comps.xml', 'updateinfo.xml.gz']
 
-cache_dir = '/var/spool/squid/yum/'
-cache_url = 'http://172.17.8.175/yum/'
-logfile = '/var/spool/squid/yum/intelligentmirror.log'
+cache_dir = mainconf.cachedir
+cache_url = mainconf.cacheurl
+logfile = mainconf.logfile
 redirect = '303'
 format = '%-13s %s'
 
