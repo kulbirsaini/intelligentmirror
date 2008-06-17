@@ -573,6 +573,7 @@ class YumConf(StartupConf):
     Note: see also options inherited from StartupConf
     '''
     cachedir = Option('/var/spool/squid/yum/')
+    tempdir = Option('/var/spool/squid/yum/temp/')
     cacheurl = Option('http://localhost/yum/')
     logfile = Option('/var/spool/squid/yum/intelligentmirror.log')
 
@@ -621,7 +622,7 @@ def readMainConfig(startupconf):
     yumconf.populate(startupconf._parser, 'main')
 
     # Apply the installroot to directory options
-    for option in ('cachedir', 'logfile'): #, 'persistdir'):
+    for option in ('cachedir', 'logfile', 'cacheurl', 'tempdir'):
         path = getattr(yumconf, option)
         setattr(yumconf, option, yumconf.installroot + path)
     

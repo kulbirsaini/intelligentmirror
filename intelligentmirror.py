@@ -19,6 +19,7 @@
 
 from config import readMainConfig, readStartupConfig
 import logging
+import md5
 import os
 import rfc822
 import stat
@@ -35,9 +36,10 @@ relevant_files = ['.rpm'] #, 'repomd.xml', 'primary.sqlite.bz2', 'primary.xml.gz
 
 cache_dir = mainconf.cachedir
 cache_url = mainconf.cacheurl
+temp_dir = mainconf.tempdir
 logfile = mainconf.logfile
 redirect = '303'
-format = '%-13s %s'
+format = '%-12s %s'
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s',
@@ -73,8 +75,10 @@ def fork(f):
 
 def download_from_source(url, path, mode):
     """This function downloads the file from remote source and caches it."""
-    file = urlgrabber.urlgrab(url, path)
-    os.chmod(file, mode)
+    download_path = os.path.join(temp_dir, md5.md5(os.path.basename(path)).hexdigest())
+    file = urlgrabber.urlgrab(url, download_path)
+    os.rename(download_path, path)
+    os.chmod(path, mode)
     log(format%('DOWNLOAD', os.path.basename(path) + ': Package was downloaded and cached.'))
     return
 
@@ -88,19 +92,11 @@ def yum_part(url, query):
     if os.path.isfile(path):
         log(format%('CACHE_HIT', os.path.basename(path) + ': Requested package was found in cache.'))
         try:
-            local_size = os.stat(path).st_size
             modified_time = os.stat(path).st_mtime
             remote_file = urlgrabber.urlopen(url)
-            remote_size = int(remote_file.info().get('content-length'))
             remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
             remote_file.close()
-            log(format%('LOCAL_SIZE', os.path.basename(path) + ': ' + str(local_size)))
-            log(format%('REMOTE_SIZE', os.path.basename(path) + ': ' + str(remote_size)))
-            if local_size != remote_size:
-                log(format%('SIZE_MISMATCH', os.path.basename(path) + ': Package is still being downloaded.'))
-                # File is still being downloaded
-                return ''
-            elif remote_time > modified_time:
+            if remote_time > modified_time:
                 log(format%('REFRESH_MISS', os.path.basename(path) + ': Requested package was older.'))
                 # If remote file is newer, cache the new one
                 forked = fork(download_from_source)
@@ -109,13 +105,17 @@ def yum_part(url, query):
             else:
                 log(format%('REFRESH_HIT', os.path.basename(path) + ': Cached package was uptodate.'))
         except urlgrabber.grabber.URLGrabError, e:
-            log(format%('URLError', os.path.basename(path) + ': Could not retrieve timestamp for remote package. Trying to serve from cache.'))
+            log(format%('URL_ERROR', os.path.basename(path) + ': Could not retrieve timestamp for remote package. Trying to serve from cache.'))
             pass
 
         cur_mode = os.stat(path)[stat.ST_MODE]
         if stat.S_IMODE(cur_mode) == mode:
             log(format%('CACHE_SERVE', os.path.basename(path) + ': Package was served from cache.'))
             return redirect + ':' + cache_url + query
+    elif os.path.isfile(os.path.join(temp_dir, md5.md5(query).hexdigest())):
+        log(format%('INCOMPLETE', os.path.basename(path) + ': Package is still being downloaded.'))
+        # File is still being downloaded
+        return ''
     else:
         try:
             log(format%('CACHE_MISS', os.path.basename(path) + ': Requested package was not found in cache.'))
@@ -123,7 +123,7 @@ def yum_part(url, query):
             forked(url, path, mode)
             return ''
         except urlgrabber.grabber.URLGrabError, e:
-            log(format%('URLError', os.path.basename(path) + ': An error occured while retrieving the package.'))
+            log(format%('URL_ERROR', os.path.basename(path) + ': An error occured while retrieving the package.'))
             pass
     return ''
 
