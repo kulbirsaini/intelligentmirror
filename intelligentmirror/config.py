@@ -572,10 +572,15 @@ class YumConf(StartupConf):
 
     Note: see also options inherited from StartupConf
     '''
-    cachedir = Option('/var/spool/squid/yum/')
-    tempdir = Option('/var/spool/squid/yum/temp/')
-    cacheurl = Option('http://localhost/yum/')
+    cache_dir = Option('/var/spool/squid/yum/')
+    temp_dir = Option('/var/spool/squid/yum/temp/')
+    cache_url = Option('http://localhost.localdomain/yum/')
     logfile = Option('/var/spool/squid/yum/intelligentmirror.log')
+    http_proxy = Option('http://localhost.localdomain:3128')
+    https_proxy = Option('http://localhost.localdomain:3128')
+    ftp_proxy = Option('http://localhost.localdomain:3128')
+    rpc_server = Option('localhost.localdomain')
+    rpc_port = Option('8000')
 
     _reposlist = []
 
@@ -622,7 +627,7 @@ def readMainConfig(startupconf):
     yumconf.populate(startupconf._parser, 'main')
 
     # Apply the installroot to directory options
-    for option in ('cachedir', 'logfile', 'cacheurl', 'tempdir'):
+    for option in ('cache_dir', 'logfile', 'temp_dir'):
         path = getattr(yumconf, option)
         setattr(yumconf, option, yumconf.installroot + path)
     

@@ -27,6 +27,8 @@ import sys
 import time
 import urlgrabber
 import urlparse
+from xmlrpclib import ServerProxy
+from SimpleXMLRPCServer import SimpleXMLRPCServer
 
 # To modify configuration parameters, see /etc/sysconfig/intelligentmirror.conf .
 # Read config file using Yum's config parsers.
@@ -34,10 +36,15 @@ mainconf = readMainConfig(readStartupConfig('/etc/sysconfig/intelligentmirror.co
 
 relevant_files = ['.rpm'] #, 'repomd.xml', 'primary.sqlite.bz2', 'primary.xml.gz', 'filelists.sqlite.bz2', 'filelists.xml.gz', 'other.sqlite.bz2', 'other.xml.gz', 'comps.xml', 'updateinfo.xml.gz']
 
-cache_dir = mainconf.cachedir
-cache_url = mainconf.cacheurl
-temp_dir = mainconf.tempdir
+cache_dir = mainconf.cache_dir
+cache_url = mainconf.cache_url
+temp_dir = mainconf.temp_dir
 logfile = mainconf.logfile
+http_proxy = mainconf.http_proxy
+https_proxy = mainconf.https_proxy
+ftp_proxy = mainconf.ftp_proxy
+rpc_server = mainconf.rpc_server
+rpc_port = mainconf.rpc_port
 redirect = '303'
 format = '%-12s %s'
 
@@ -46,6 +53,44 @@ logging.basicConfig(level=logging.DEBUG,
                     filename=logfile,
                     filemode='a')
 log = logging.info
+
+class Bucket:
+    """
+    This class is for sharing the current packages being downloading
+    across various instances of intelligentmirror via XMLRPC.
+    """
+    def __init__(self, packages = []):
+        self.packages = packages
+        pass
+
+    def get(self):
+        return self.packages
+
+    def set(self, packages):
+        self.packages = packages
+        return self.packages
+
+    def add(self, package):
+        if package not in self.packages:
+            self.packages.append(package)
+        return self.packages
+
+    def remove(self, package):
+        if package in self.packages:
+            self.packages.remove(package)
+        return self.packages
+
+# If XMLRPCServer is running already, don't start it again
+try:
+    bucket = ServerProxy('http://' + str(rpc_server) + ':' + str(rpc_port))
+    list = bucket.get()
+except:
+    server = SimpleXMLRPCServer((rpc_server, int(rpc_port)))
+    server.register_instance(Bucket())
+    log(format%('XMLRPCServer', 'Starting XMLRPCServer on port ' + str(rpc_port) + '.'))
+    server.serve_forever()
+
+grabber = urlgrabber.grabber.URLGrabber(proxies = {'http': http_proxy, 'https': https_proxy, 'ftp': ftp_proxy})
 
 def fork(f):
     """Generator for creating a forked process
@@ -76,11 +121,11 @@ def fork(f):
 def download_from_source(url, path, mode):
     """This function downloads the file from remote source and caches it."""
     download_path = os.path.join(temp_dir, md5.md5(os.path.basename(path)).hexdigest())
-    file = urlgrabber.urlgrab(url, download_path)
-    os.rename(download_path, path)
+    open(download_path, 'a').close()
+    file = grabber.urlgrab(url, download_path)
+    os.rename(file, path)
     os.chmod(path, mode)
     log(format%('DOWNLOAD', os.path.basename(path) + ': Package was downloaded and cached.'))
-    return
 
 def yum_part(url, query):
     """This function check whether a package is in cache or not. If not, it
@@ -93,7 +138,7 @@ def yum_part(url, query):
         log(format%('CACHE_HIT', os.path.basename(path) + ': Requested package was found in cache.'))
         try:
             modified_time = os.stat(path).st_mtime
-            remote_file = urlgrabber.urlopen(url)
+            remote_file = grabber.urlopen(url)
             remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
             remote_file.close()
             if remote_time > modified_time:
@@ -104,6 +149,7 @@ def yum_part(url, query):
                 return ''
             else:
                 log(format%('REFRESH_HIT', os.path.basename(path) + ': Cached package was uptodate.'))
+                pass
         except urlgrabber.grabber.URLGrabError, e:
             log(format%('URL_ERROR', os.path.basename(path) + ': Could not retrieve timestamp for remote package. Trying to serve from cache.'))
             pass
@@ -117,14 +163,9 @@ def yum_part(url, query):
         # File is still being downloaded
         return ''
     else:
-        try:
-            log(format%('CACHE_MISS', os.path.basename(path) + ': Requested package was not found in cache.'))
-            forked = fork(download_from_source)
-            forked(url, path, mode)
-            return ''
-        except urlgrabber.grabber.URLGrabError, e:
-            log(format%('URL_ERROR', os.path.basename(path) + ': An error occured while retrieving the package.'))
-            pass
+        log(format%('CACHE_MISS', os.path.basename(path) + ': Requested package was not found in cache.'))
+        forked = fork(download_from_source)
+        forked(url, path, mode)
     return ''
 
 def squid_part():
@@ -149,9 +190,16 @@ def squid_part():
             for file in relevant_files:
                 if query.endswith(file):
                     # This signifies that URL is a rpm package
+                    md5id = md5.md5(query).hexdigest()
+                    packages = bucket.get()
+                    if md5id in packages:
+                        break
+                    else:
+                        bucket.add(md5id)
                     log(format%('URL_HIT', url[0]))
                     new_url = yum_part(url[0], query) + new_url
                     log(format%('NEW_URL', new_url.strip('\n')))
+                    bucket.remove(md5id)
                     break
             else:
                 pass
@@ -189,6 +237,6 @@ def cmd_squid_part():
 
 if __name__ == '__main__':
     # For testing on command line, use this function
-    cmd_squid_part()
+    #cmd_squid_part()
     # For testing with squid, use this function
-    # squid_part()
+    squid_part()

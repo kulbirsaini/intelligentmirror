@@ -1,0 +1,94 @@
+1. NAME
+       intelligentmirror - Squid redirector plugin for caching rpm packages.
+
+2. SYNOPSIS
+       To be used to with squid as a redirector plugin.
+
+3. DESCRIPTION
+       IntelligentMirror  can  be  used  to  create a mirror of static HTTP content on your local network. When you download something (say a
+       software package) from Internet, it is stored/cached on a local machine on your network and subsequent downloads  of  that  particular
+       software  package  are supplied from the storage/cache of the local machine. This facilitate the efficient usage of bandwidth and also
+       reduces the average download time. IntelligentMirror can also do pre-fetching of RPM packages from fedora repositories spread all over
+       the  world  and  can  also  pre-populate the local repo with popular packages like mplayer, vlc, gstreamer which are normally accessed
+       immediately after a fresh install.
+
+4. CONFIGURATION
+       To configure intelligentmirror, you need to configure Apache Webserver (httpd), Proxy Server (squid), and the global intelligentmirror
+       configuration file. Below are the steps to configure intelligentmirror.
+
+4.1 Squid Configuration
+       To  configure  squid  to  use  intelligentmirror as a redirector, you need to add the following lines to your sqiud configuration file
+       (generally found in /etc/squid/squid.conf )
+
+       # --BEGIN-- intelligentmirror config #
+       redirect_program /usr/bin/python /etc/squid/intelligentmirror/intelligentmirror.py
+       redirect_children 20
+       # --END-- intelligentmirror config #
+
+4.2 Apache Webserver (httpd) Configuration
+       Config file : /etc/httpd/conf.d/intelligentmirror.conf
+       Modify the configuration file the way you want and reload the httpd service using the following command.
+
+       [root@localhost root]# service httpd reload
+
+4.3 intelligentmirror Global Configuration
+       Config file : /etc/sysconfig/intelligentmirror.conf
+
+       cache_dir
+              Directory to cache rpm packages.
+              Default : /var/spool/squid/intelligentmirror/
+
+       temp_dir
+              Directory to store partitially cached rpm packages.
+              Default : /var/spool/sqiud/intelligentmirror/temp
+
+       http_proxy
+              Proxy server to use for caching rpm packages via http.
+              Default : http://localhost.localdomain:3128/
+
+       https_proxy
+              Proxy server to use for caching rpm packages via https.
+              Default : http://localhost.localdomain:3128/
+
+       ftp_proxy
+              Proxy server to use for caching rpm packages via ftp.
+              Default : http://localhost.localdomain:3128/
+
+       cache_url
+              URL to serve the cached rpm packages. If you change  this,  don’t  forget  to  modify  /etc/httpd/conf.d/intelligentmirror.conf
+              accordingly and reload the httpd service.
+              Default : http://localhost.localdomain/intelligentmirror/
+
+       logfile
+              File to log all the intelligentmirror activities.
+              Default : /var/log/squid/intelligentmirror.log
+
+       rpc_server
+              XMLRPCServer  is  used for memory sharing across different instances of intelligentmirror. Leave these settings as it is if you
+              don’t have a fair idea of XMLRPCServer.
+              Default : localhost.localdomain
+
+       rpc_port
+              Please make sure this port is not currently in use. If it is in use by some other program, change this to some port above  1024
+              which is not in use by any other program.
+              Default : 9000
+
+5. FILES
+       /etc/sysconfig/intelligentmirror.conf
+       /etc/httpd/conf.d/intelligentmirror.conf
+       /etc/squid/intelligentmirror/
+       /var/spool/squid/intelligentmirror/
+       /var/log/squid/intelligentmirror.log
+
+6. SEE ALSO
+       squid (8)
+       http://fedora.co.in/
+       How to configure squid : http://fedora.co.in/content/how-configure-squid-proxy-server
+       How to write custorm squid redirector in python : http://fedora.co.in/content/writing-custom-redirector-plugin-squid-python
+
+7. AUTHORS
+       Kulbir Saini <kulbirsaini@students.iiit.ac.in>
+
+8. BUGS
+       Mail bugs/suggestions to Kulbir Saini <kulbirsaini@students.iiit.ac.in>
+
