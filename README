@@ -12,11 +12,19 @@
        the  world  and  can  also  pre-populate the local repo with popular packages like mplayer, vlc, gstreamer which are normally accessed
        immediately after a fresh install.
 
-4. CONFIGURATION
+4. SYNOPSIS
+       1. python
+       2. python-urlgrabber
+       3. python-iniparse
+       4. rpm-python
+       5. squid
+       6. httpd
+
+5. CONFIGURATION
        To configure intelligentmirror, you need to configure Apache Webserver (httpd), Proxy Server (squid), and the global intelligentmirror
        configuration file. Below are the steps to configure intelligentmirror.
 
-4.1 Squid Configuration
+5.1 Squid Configuration
        To  configure  squid  to  use  intelligentmirror as a redirector, you need to add the following lines to your sqiud configuration file
        (generally found in /etc/squid/squid.conf )
 
@@ -25,14 +33,14 @@
        redirect_children 20
        # --END-- intelligentmirror config #
 
-4.2 Apache Webserver (httpd) Configuration
+5.2 Apache Webserver (httpd) Configuration
        Config file : /etc/httpd/conf.d/intelligentmirror.conf
        Modify the configuration file the way you want and reload the httpd service using the following command.
 
        [root@localhost root]# service httpd reload
 
-4.3 intelligentmirror Global Configuration
-       Config file : /etc/sysconfig/intelligentmirror.conf
+5.3 intelligentmirror Global Configuration
+       Config file : /etc/intelligentmirror.conf
 
        cache_dir
               Directory to cache rpm packages.
@@ -73,22 +81,22 @@
               which is not in use by any other program.
               Default : 9000
 
-5. FILES
-       /etc/sysconfig/intelligentmirror.conf
+6. FILES
+       /etc/intelligentmirror.conf
        /etc/httpd/conf.d/intelligentmirror.conf
        /etc/squid/intelligentmirror/
        /var/spool/squid/intelligentmirror/
        /var/log/squid/intelligentmirror.log
 
-6. SEE ALSO
+7. SEE ALSO
        squid (8)
-       http://fedora.co.in/
+       https://fedorahosted.org/intelligentmirror
        How to configure squid : http://fedora.co.in/content/how-configure-squid-proxy-server
        How to write custorm squid redirector in python : http://fedora.co.in/content/writing-custom-redirector-plugin-squid-python
 
-7. AUTHORS
+8. AUTHORS
        Kulbir Saini <kulbirsaini@students.iiit.ac.in>
 
-8. BUGS
+9. BUGS
        Mail bugs/suggestions to Kulbir Saini <kulbirsaini@students.iiit.ac.in>
 

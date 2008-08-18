@@ -30,9 +30,9 @@ import urlparse
 from xmlrpclib import ServerProxy
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
-# To modify configuration parameters, see /etc/sysconfig/intelligentmirror.conf .
+# To modify configuration parameters, see /etc/intelligentmirror.conf .
 # Read config file using Yum's config parsers.
-mainconf = readMainConfig(readStartupConfig('/etc/sysconfig/intelligentmirror.conf', '/'))
+mainconf = readMainConfig(readStartupConfig('/etc/intelligentmirror.conf', '/'))
 
 relevant_files = ['.rpm'] #, 'repomd.xml', 'primary.sqlite.bz2', 'primary.xml.gz', 'filelists.sqlite.bz2', 'filelists.xml.gz', 'other.sqlite.bz2', 'other.xml.gz', 'comps.xml', 'updateinfo.xml.gz']
 

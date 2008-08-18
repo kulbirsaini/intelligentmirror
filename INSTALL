@@ -4,6 +4,8 @@
 2. httpd ( Apache ) or any other webserver
 3. python
 4. python-urlgrabber
+5. python-iniparse
+6. rpm-python
 
 2. Installation (for Redhat and derivatives)
 ============================================
@@ -17,7 +19,7 @@ c) Go to intelligentmirror-x.x-x directory
 d) Copy intelligentmirror_httpd.conf to /etc/httpd/conf.d/intelligentmirror.conf
 [root@localhost intelligentmirror-x.x-x]# cp intelligentmirror_httpd.conf /etc/httpd/conf.d/intelligentmirror.conf
 
-e) Copy intelligentmirror_sysconf.conf to /etc/sysconfig/intelligentmirror.conf
+e) Copy intelligentmirror_sysconf.conf to /etc/intelligentmirror.conf
 [root@localhost intelligentmirror-x.x-x]# cp intelligentmirror_sysconf.conf /etc/sysconfig/intelligentmirror.conf
 
 f) Copy intelligentmirror directory to /etc/squid/
@@ -61,10 +63,11 @@ Save squid.conf and reload the squid service using
 [root@proxy root]# service squid reload
 
 4. Bugs, Suggestions, Comments
-===========================
+===============================
 Mail them to Kulbir Saini <kulbirsaini@students.iiit.ac.in>
 
 5. Online Help
-===========
-1. How to configure squid http://fedora.co.in/content/how-configure-squid-proxy-server
-2. How to write custorm squid redirector in python http://fedora.co.in/content/writing-custom-redirector-plugin-squid-python
+==============
+1. Project Page : https://fedorahosted.org/intelligentmirror
+2. How to configure squid http://fedora.co.in/content/how-configure-squid-proxy-server
+3. How to write custorm squid redirector in python http://fedora.co.in/content/writing-custom-redirector-plugin-squid-python
