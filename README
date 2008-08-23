@@ -31,6 +31,8 @@
        # --BEGIN-- intelligentmirror config #
        redirect_program /usr/bin/python /etc/squid/intelligentmirror/intelligentmirror.py
        redirect_children 20
+       acl rpms urlpath_regex \.rpm$
+       cache deny rpms
        # --END-- intelligentmirror config #
 
 5.2 Apache Webserver (httpd) Configuration

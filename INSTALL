@@ -57,6 +57,8 @@ Add the following lines to your squid.conf which is generally found in
 #### BEGIN Add to squid.conf ####
 redirect_program /usr/bin/python /etc/squid/intelligentmirror/intelligentmirror.py
 redirect_children 20
+acl rpms urlpath_regex \.rpm$
+cache deny rpms
 #### END Add to squid.conf ####
 
 Save squid.conf and reload the squid service using
