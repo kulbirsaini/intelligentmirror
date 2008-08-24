@@ -572,15 +572,30 @@ class YumConf(StartupConf):
 
     Note: see also options inherited from StartupConf
     '''
-    cache_dir = Option('/var/spool/squid/yum/')
-    temp_dir = Option('/var/spool/squid/yum/temp/')
-    cache_url = Option('http://localhost.localdomain/yum/')
+    # Common config
+    base_dir = Option('/var/spool/squid/intelligentmirror/')
+    temp_dir = Option('temp')
     logfile = Option('/var/spool/squid/yum/intelligentmirror.log')
-    http_proxy = Option('http://localhost.localdomain:3128')
-    https_proxy = Option('http://localhost.localdomain:3128')
-    ftp_proxy = Option('http://localhost.localdomain:3128')
-    rpc_server = Option('localhost.localdomain')
-    rpc_port = Option('8000')
+    proxy = Option('http://localhost.localdomain:3128')
+    proxy_username = Option()
+    proxy_password = Option()
+    rpc_host = Option('localhost.localdomain')
+    rpc_port = Option(8000)
+    cache_host = Option('localhost.localdomain')
+
+    # RPM related config
+    enable_rpm_cache = Option(1)
+    rpm_cache_dir = Option('rpm')
+    rpm_cache_size = Option(0)
+    max_rpm_size = Option(0)
+    min_rpm_size = Option(0)
+
+    # Deb related config
+    enable_deb_cache = Option(1)
+    deb_cache_dir = Option('deb')
+    deb_cache_size = Option(0)
+    max_deb_size = Option(0)
+    min_deb_size = Option(0)
 
     _reposlist = []
 
@@ -627,7 +642,7 @@ def readMainConfig(startupconf):
     yumconf.populate(startupconf._parser, 'main')
 
     # Apply the installroot to directory options
-    for option in ('cache_dir', 'logfile', 'temp_dir'):
+    for option in ('base_dir', 'logfile'):
         path = getattr(yumconf, option)
         setattr(yumconf, option, yumconf.installroot + path)
     

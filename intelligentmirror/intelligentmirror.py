@@ -33,26 +33,56 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer
 # To modify configuration parameters, see /etc/intelligentmirror.conf .
 # Read config file using Yum's config parsers.
 mainconf = readMainConfig(readStartupConfig('/etc/intelligentmirror.conf', '/'))
+#mainconf = readMainConfig(readStartupConfig('/home2/Studies/project/btp/Yum/intelligentmirror/intelligentmirror_sysconf.conf', '/'))
 
-relevant_files = ['.rpm'] #, 'repomd.xml', 'primary.sqlite.bz2', 'primary.xml.gz', 'filelists.sqlite.bz2', 'filelists.xml.gz', 'other.sqlite.bz2', 'other.xml.gz', 'comps.xml', 'updateinfo.xml.gz']
-
-cache_dir = mainconf.cache_dir
-cache_url = mainconf.cache_url
-temp_dir = mainconf.temp_dir
-logfile = mainconf.logfile
-http_proxy = mainconf.http_proxy
-https_proxy = mainconf.https_proxy
-ftp_proxy = mainconf.ftp_proxy
-rpc_server = mainconf.rpc_server
-rpc_port = mainconf.rpc_port
+# Global hard coded variables
+rpm_files = ['.rpm']
+deb_files = ['.deb']
 redirect = '303'
 format = '%-12s %s'
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)s %(message)s',
-                    filename=logfile,
-                    filemode='a')
-log = logging.info
+# Global variables from config file.
+base_dir = mainconf.base_dir
+temp_dir = base_dir + '/' + mainconf.temp_dir
+cache_host =  mainconf.cache_host
+rpc_host = mainconf.rpc_host
+rpc_port = int(mainconf.rpc_port)
+logfile = mainconf.logfile
+proxy = mainconf.proxy
+proxy_username = mainconf.proxy_username
+proxy_password = mainconf.proxy_password
+
+# RPM related variables.
+enable_rpm_cache = int(mainconf.enable_rpm_cache)
+rpm_cache_dir = base_dir + '/' + mainconf.rpm_cache_dir
+rpm_cache_size = int(mainconf.rpm_cache_size)
+max_rpm_size = int(mainconf.max_rpm_size)
+min_rpm_size = int(mainconf.min_rpm_size)
+
+# Deb related variables.
+enable_deb_cache = int(mainconf.enable_deb_cache)
+deb_cache_dir = base_dir + '/' + mainconf.deb_cache_dir
+deb_cache_size = int(mainconf.deb_cache_size)
+max_deb_size = int(mainconf.max_deb_size)
+min_deb_size = int(mainconf.min_deb_size)
+
+def set_proxy():
+    if proxy_username and proxy_password:
+        proxy_parts = urlparse.urlsplit(proxy)
+        new_proxy = '%s://%s:%s@%s/' % (proxy_parts[0], proxy_username, proxy_password, proxy_parts[1])
+    else:
+        new_proxy = proxy
+    return urlgrabber.grabber.URLGrabber(proxies = {'http': new_proxy, 'https': new_proxy, 'ftp': new_proxy})
+
+def set_logging():
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        filename=logfile,
+                        filemode='a')
+    return logging.info
+
+grabber = set_proxy()
+log = set_logging()
 
 class Bucket:
     """
@@ -82,15 +112,13 @@ class Bucket:
 
 # If XMLRPCServer is running already, don't start it again
 try:
-    bucket = ServerProxy('http://' + str(rpc_server) + ':' + str(rpc_port))
+    bucket = ServerProxy('http://' + rpc_host + ':' + str(rpc_port))
     list = bucket.get()
 except:
-    server = SimpleXMLRPCServer((rpc_server, int(rpc_port)))
+    server = SimpleXMLRPCServer((rpc_host, rpc_port))
     server.register_instance(Bucket())
     log(format%('XMLRPCServer', 'Starting XMLRPCServer on port ' + str(rpc_port) + '.'))
     server.serve_forever()
-
-grabber = urlgrabber.grabber.URLGrabber(proxies = {'http': http_proxy, 'https': https_proxy, 'ftp': ftp_proxy})
 
 def fork(f):
     """Generator for creating a forked process
@@ -115,57 +143,79 @@ def fork(f):
         exits the process"""
         f(*args, **kwargs)
         os._exit(0)
-
     return wrapper
 
-def download_from_source(url, path, mode):
-    """This function downloads the file from remote source and caches it."""
-    download_path = os.path.join(temp_dir, md5.md5(os.path.basename(path)).hexdigest())
-    open(download_path, 'a').close()
-    file = grabber.urlgrab(url, download_path)
-    os.rename(file, path)
-    os.chmod(path, mode)
-    log(format%('DOWNLOAD', os.path.basename(path) + ': Package was downloaded and cached.'))
+def dir_size(dir):
+    """
+    This is not a standard function to calculate the size of a directory.
+    This function will only give the sum of sizes of all the files in 'dir'.
+    """
+    # Initialize with 4096bytes as the size of an empty dir is 4096bytes.
+    size = 4096
+    try:
+        for file in os.listdir(dir):
+            size += int(os.stat(dir + '/' + file)[6])
+    except:
+        return -1
+    return size / (1024*1024)
 
-def yum_part(url, query):
+def download_from_source(url, path, mode, max_size, min_size):
+    """This function downloads the file from remote source and caches it."""
+    try:
+        remote_file = grabber.urlopen(url)
+        remote_size = int(remote_file.info().getheader('content-length')) / 1024
+        remote_file.close()
+    except urlgrabber.grabber.URLGrabError, e:
+        log(format%('URL_ERROR', os.path.basename(path) + ' : Could not retrieve size of remote package.'))
+        return
+
+    if max_size and remote_size > max_size:
+        return
+    if min_size and remote_size < min_size:
+        return
+
+    try:
+        download_path = os.path.join(temp_dir, md5.md5(os.path.basename(path)).hexdigest())
+        open(download_path, 'a').close()
+        file = grabber.urlgrab(url, download_path)
+        os.rename(file, path)
+        os.chmod(path, mode)
+        log(format%('DOWNLOAD', os.path.basename(path) + ' : Package was downloaded and cached.'))
+    except:
+        log(format%('DELETE_TEMP', os.path.basename(download_path) + ' : An error occured while downloading. Temporary file was deleted.'))
+        os.unlink(download_path)
+    return
+
+def yum_part(url, query, type):
     """This function check whether a package is in cache or not. If not, it
     fetches it from the remote source and cache it and also streams it the client."""
     # The expected mode of the cached file, so that it is readable by apache
     # to stream it to the client.
     mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
-    path = cache_dir + query
-    if os.path.isfile(path):
-        log(format%('CACHE_HIT', os.path.basename(path) + ': Requested package was found in cache.'))
-        try:
-            modified_time = os.stat(path).st_mtime
-            remote_file = grabber.urlopen(url)
-            remote_time = rfc822.mktime_tz(remote_file.info().getdate_tz('last-modified'))
-            remote_file.close()
-            if remote_time > modified_time:
-                log(format%('REFRESH_MISS', os.path.basename(path) + ': Requested package was older.'))
-                # If remote file is newer, cache the new one
-                forked = fork(download_from_source)
-                forked(url, path, mode)
-                return ''
-            else:
-                log(format%('REFRESH_HIT', os.path.basename(path) + ': Cached package was uptodate.'))
-                pass
-        except urlgrabber.grabber.URLGrabError, e:
-            log(format%('URL_ERROR', os.path.basename(path) + ': Could not retrieve timestamp for remote package. Trying to serve from cache.'))
-            pass
+    if type == 'rpm':
+        path = rpm_cache_dir + '/' + query
+        max_size = max_rpm_size
+        min_size = min_rpm_size
+    elif type == 'deb':
+        path = deb_cache_dir + '/' + query
+        max_size = max_deb_size
+        min_size = min_deb_size
 
+    if os.path.isfile(path):
+        log(format%('CACHE_HIT', os.path.basename(path) + ' : Requested package was found in cache.'))
         cur_mode = os.stat(path)[stat.ST_MODE]
         if stat.S_IMODE(cur_mode) == mode:
-            log(format%('CACHE_SERVE', os.path.basename(path) + ': Package was served from cache.'))
-            return redirect + ':' + cache_url + query
+            log(format%('CACHE_SERVE', os.path.basename(path) + ' : Package was served from cache.'))
+            return redirect + ':http://' + cache_host + '/intelligentmirror/' + type + '/' + query
     elif os.path.isfile(os.path.join(temp_dir, md5.md5(query).hexdigest())):
-        log(format%('INCOMPLETE', os.path.basename(path) + ': Package is still being downloaded.'))
+        log(format%('INCOMPLETE', os.path.basename(path) + ' : Package is still being downloaded.'))
         # File is still being downloaded
         return ''
     else:
-        log(format%('CACHE_MISS', os.path.basename(path) + ': Requested package was not found in cache.'))
+        log(format%('CACHE_MISS', os.path.basename(path) + ' : Requested package was not found in cache.'))
         forked = fork(download_from_source)
-        forked(url, path, mode)
+        forked(url, path, mode, max_size, min_size)
+
     return ''
 
 def squid_part():
@@ -183,26 +233,40 @@ def squid_part():
         query = os.path.basename(path)
         # If requested url is already a cache url, no need to check.
         # DONT REMOVE THIS CHECK, OTHERWISE IT WILL RESULT IN INFINITE LOOP.
-        if url[0].startswith(cache_url):
+        if url[0].find(cache_host) > -1:
             log(format%('URL_IGNORE', 'Already a URL from cache.'))
             pass
         else:
-            for file in relevant_files:
-                if query.endswith(file):
-                    # This signifies that URL is a rpm package
-                    md5id = md5.md5(query).hexdigest()
-                    packages = bucket.get()
-                    if md5id in packages:
+            if enable_rpm_cache and (rpm_cache_size == 0 or dir_size(rpm_cache_dir) < rpm_cache_size):
+                for file in rpm_files:
+                    if query.endswith(file):
+                        # This signifies that URL is a rpm package
+                        md5id = md5.md5(query).hexdigest()
+                        packages = bucket.get()
+                        if md5id in packages:
+                            break
+                        else:
+                            bucket.add(md5id)
+                        log(format%('URL_HIT', url[0]))
+                        new_url = yum_part(url[0], query, 'rpm') + new_url
+                        log(format%('NEW_URL', new_url.strip('\n')))
+                        bucket.remove(md5id)
                         break
-                    else:
-                        bucket.add(md5id)
-                    log(format%('URL_HIT', url[0]))
-                    new_url = yum_part(url[0], query) + new_url
-                    log(format%('NEW_URL', new_url.strip('\n')))
-                    bucket.remove(md5id)
-                    break
-            else:
-                pass
+            if enable_deb_cache and (deb_cache_size == 0 or dir_size(deb_cache_dir) < deb_cache_size):
+                for file in deb_files:
+                    if query.endswith(file):
+                        # This signifies that URL is a deb package
+                        md5id = md5.md5(query).hexdigest()
+                        packages = bucket.get()
+                        if md5id in packages:
+                            break
+                        else:
+                            bucket.add(md5id)
+                        log(format%('URL_HIT', url[0]))
+                        new_url = yum_part(url[0], query, 'deb') + new_url
+                        log(format%('NEW_URL', new_url.strip('\n')))
+                        bucket.remove(md5id)
+                        break
         # Flush the new url to stdout for squid to process
         sys.stdout.write(new_url)
         sys.stdout.flush()
@@ -219,24 +283,45 @@ def cmd_squid_part():
         path = urlparse.urlsplit(url[0])[2]
         query = os.path.basename(path)
         # If requested url is already a cache url, no need to screw things.
-        if url[0].startswith(cache_url):
+        if url[0].find(cache_host) > -1:
             log(format%('URL_IGNORE', 'Already a URL from cache.'))
             pass
         else:
-            for file in relevant_files:
-                if query.endswith(file):
-                    log(format%('URL_HIT', url[0]))
-                    new_url = yum_part(url[0], query) + new_url
-                    log(format%('NEW_URL', new_url.strip('\n')))
-                    break
-            else:
-                log(format%('URL_MISS', 'Requested URL is of no interest.'))
-                pass
+            if enable_rpm_cache and (rpm_cache_size == 0 or dir_size(rpm_cache_dir) < rpm_cache_size):
+                for file in rpm_files:
+                    if query.endswith(file):
+                        # This signifies that URL is a rpm package
+                        md5id = md5.md5(query).hexdigest()
+                        packages = bucket.get()
+                        if md5id in packages:
+                            break
+                        else:
+                            bucket.add(md5id)
+                        log(format%('URL_HIT', url[0]))
+                        new_url = yum_part(url[0], query, 'rpm') + new_url
+                        log(format%('NEW_URL', new_url.strip('\n')))
+                        bucket.remove(md5id)
+                        break
+            if enable_deb_cache and (deb_cache_size == 0 or dir_size(deb_cache_dir) < deb_cache_size):
+                for file in deb_files:
+                    if query.endswith(file):
+                        # This signifies that URL is a deb package
+                        md5id = md5.md5(query).hexdigest()
+                        packages = bucket.get()
+                        if md5id in packages:
+                            break
+                        else:
+                            bucket.add(md5id)
+                        log(format%('URL_HIT', url[0]))
+                        new_url = yum_part(url[0], query, 'deb') + new_url
+                        log(format%('NEW_URL', new_url.strip('\n')))
+                        bucket.remove(md5id)
+                        break
         print 'new url:', new_url,
         break
 
 if __name__ == '__main__':
     # For testing on command line, use this function
-    #cmd_squid_part()
+    cmd_squid_part()
     # For testing with squid, use this function
-    squid_part()
+    #squid_part()
