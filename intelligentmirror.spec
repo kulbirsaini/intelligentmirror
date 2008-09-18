@@ -1,14 +1,14 @@
 %define prefix /
 
 Name:         intelligentmirror
-Version:      0.3
+Version:      0.4
 Release:      1
-Summary:      Squid redirector to cache rpm packages.
+Summary:      Squid url rewriter to cache rpm/deb packages.
 License:      GPL
 Group:        Applications/Internet
 URL:          https://fedorahosted.org/intelligentmirror
-Source:       %{name}-%{version}-%{release}.tar.gz
-Buildroot:    %{_tmppath}/%{name}-%{version}-%{release}-root 
+Source:       %{name}-%{version}.tar.gz
+Buildroot:    %{_tmppath}/%{name}-%{version}-root 
 BuildArch:    noarch
 Requires:     python
 Requires:     python-iniparse
@@ -20,7 +20,7 @@ Requires:     httpd
 IntelligentMirror can be used to create a mirror of static HTTP content on your local network. When you download something (say a software package) from Internet, it is stored/cached on a local machine on your network and subsequent downloads of that particular software package are supplied from the storage/cache of the local machine. This facilitate the efficient usage of bandwidth and also reduces the average download time. 
 %prep
 
-%setup -n %{name}-%{version}-%{release}
+%setup -n %{name}-%{version}
 
 %build
 echo "No building... its python..." > /dev/null
@@ -32,7 +32,9 @@ install -d ${RPM_BUILD_ROOT}%{prefix}/etc/httpd/conf.d/
 install -m 755 -d ${RPM_BUILD_ROOT}%{prefix}/etc/squid/intelligentmirror/
 install -m 700 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/log/squid/
 install -m 755 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/intelligentmirror/
-install -m 755 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/intelligentmirror/temp/
+install -m 755 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/intelligentmirror/rpm/
+install -m 755 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/intelligentmirror/deb/
+install -m 755 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/intelligentmirror/tmp/
 install -m 744 -d ${RPM_BUILD_ROOT}%{prefix}/usr/share/man/man8/
 install -m 644 intelligentmirror/* -t ${RPM_BUILD_ROOT}%{prefix}/etc/squid/intelligentmirror/
 install -m 644 intelligentmirror_sysconf.conf -T ${RPM_BUILD_ROOT}%{prefix}/etc/intelligentmirror.conf
@@ -45,17 +47,16 @@ rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_DIR/%{name}-%{version}-%{release}
 
 %files
-%{prefix}/etc/squid/intelligentmirror/*
+%{prefix}/etc/squid/intelligentmirror/
 %{prefix}/etc/intelligentmirror.conf
 %{prefix}/etc/httpd/conf.d/intelligentmirror.conf
 %{prefix}/var/log/squid/intelligentmirror.log
-%{prefix}/var/spool/squid/intelligentmirror/*
+%{prefix}/var/spool/squid/intelligentmirror/
 %{prefix}/usr/share/man/man8/intelligentmirror.8.gz
 
 %post
 chown squid:squid ${RPM_BUILD_ROOT}%{prefix}/var/log/squid/intelligentmirror.log
 chown -R squid:squid ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/intelligentmirror
-chmod 600 ${RPM_BUILD_ROOT}%{prefix}/var/log/squid/intelligentmirror.log
 echo "Reloading httpd service..."
 /sbin/service httpd reload
 echo "You need to modify /etc/intelligentmirror.conf to make caching work properly."
@@ -64,6 +65,24 @@ echo "Also you need to configure squid. Check intelligentmirror manpage for more
 %preun
 
 %changelog
+* Fri Sep 19 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
+- Fixed the defunct process bug. Ready to cache debian packages as well.
+- Introduced limits on package and cache sizes. Option to enable/disable
+- caching rpm/deb packages are available now.
+
+* Tue Sep 16 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
+- A few corrections in INSTALL file.
+
+* Mon Aug 25 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
+- Implemented the new set of options. Also a lot of performance enhancement. IM is faster now. Deb caching working perfectly.
+
+* Sat Aug 23 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
+- A new series of options has been proposed. Not implemented yet, but will be implemented very soon.
+
+* Tue Aug 19 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
+- Working version with squid-2.6STABLE16 and above. Forked processes still defuct after download.
+- Need to dig more to figure it out.
+
 * Wed Jun 25 2008 Kulbir Saini <kulbirsaini@students.iiit.ac.in>
 - Bumped to version 0.2
 
