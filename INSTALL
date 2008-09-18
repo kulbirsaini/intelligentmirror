@@ -52,12 +52,16 @@ reload httpd service using
 Add the following lines to your squid.conf which is generally found in
 /etc/squid/squid.conf .
 
-#### BEGIN Add to squid.conf ####
-redirect_program /usr/bin/python /etc/squid/intelligentmirror/intelligentmirror.py
-redirect_children 20
-acl rpms urlpath_regex \.rpm$
-cache deny rpms
-#### END Add to squid.conf ####
+# --BEGIN-- intelligentmirror config for squid #
+url_rewrite_program /usr/bin/python /etc/squid/intelligentmirror/intelligentmirror.py
+url_rewrite_children 15
+acl intelligentmirror urlpath_regex -i \.rpm$
+acl intelligentmirror urlpath_regex -i \.deb$
+url_rewrite_access allow intelligentmirror
+url_rewrite_access deny all
+cache deny intelligentmirror
+redirector_bypass on
+# --END-- intelligentmirror config for squid #
 
 Save squid.conf and reload the squid service using
 [root@proxy root]# service squid reload

@@ -21,10 +21,8 @@ from config import readMainConfig, readStartupConfig
 import logging
 import md5
 import os
-import rfc822
 import stat
 import sys
-import time
 import urlgrabber
 import urlparse
 from xmlrpclib import ServerProxy
@@ -126,6 +124,8 @@ def fork(f):
     # Perform double fork
     r = ''
     if os.fork(): # Parent
+        # Wait for children so that they don't get defunct.
+        os.wait()
         # Return a function
         return  lambda *x, **kw: r 
 
@@ -159,6 +159,11 @@ def dir_size(dir):
         return -1
     return size / (1024*1024)
 
+def remove(query):
+    packages = bucket.get()
+    md5id = md5.md5(query).hexdigest()
+    bucket.remove(md5id)
+
 def download_from_source(url, path, mode, max_size, min_size):
     """This function downloads the file from remote source and caches it."""
     try:
@@ -170,8 +175,10 @@ def download_from_source(url, path, mode, max_size, min_size):
         return
 
     if max_size and remote_size > max_size:
+        log(format%('MAX_SIZE', os.path.basename(path) + ' : Package size ' + str(remote_size) + ' is larger than maximum allowed.'))
         return
     if min_size and remote_size < min_size:
+        log(format%('MIN_SIZE', os.path.basename(path) + ' : Package size ' + str(remote_size) + ' is smaller than minimum allowed.'))
         return
 
     try:
@@ -180,10 +187,12 @@ def download_from_source(url, path, mode, max_size, min_size):
         file = grabber.urlgrab(url, download_path)
         os.rename(file, path)
         os.chmod(path, mode)
+        remove(os.path.basename(path))
         log(format%('DOWNLOAD', os.path.basename(path) + ' : Package was downloaded and cached.'))
     except:
-        log(format%('DELETE_TEMP', os.path.basename(download_path) + ' : An error occured while downloading. Temporary file was deleted.'))
         os.unlink(download_path)
+        remove(os.path.basename(path))
+        log(format%('DELETE_TEMP', os.path.basename(download_path) + ' : An error occured while downloading. Temporary file was deleted.'))
     return
 
 def yum_part(url, query, type):
@@ -204,13 +213,10 @@ def yum_part(url, query, type):
     if os.path.isfile(path):
         log(format%('CACHE_HIT', os.path.basename(path) + ' : Requested package was found in cache.'))
         cur_mode = os.stat(path)[stat.ST_MODE]
+        remove(query)
         if stat.S_IMODE(cur_mode) == mode:
             log(format%('CACHE_SERVE', os.path.basename(path) + ' : Package was served from cache.'))
             return redirect + ':http://' + cache_host + '/intelligentmirror/' + type + '/' + query
-    elif os.path.isfile(os.path.join(temp_dir, md5.md5(query).hexdigest())):
-        log(format%('INCOMPLETE', os.path.basename(path) + ' : Package is still being downloaded.'))
-        # File is still being downloaded
-        return ''
     else:
         log(format%('CACHE_MISS', os.path.basename(path) + ' : Requested package was not found in cache.'))
         forked = fork(download_from_source)
@@ -250,7 +256,6 @@ def squid_part():
                         log(format%('URL_HIT', url[0]))
                         new_url = yum_part(url[0], query, 'rpm') + new_url
                         log(format%('NEW_URL', new_url.strip('\n')))
-                        bucket.remove(md5id)
                         break
             if enable_deb_cache and (deb_cache_size == 0 or dir_size(deb_cache_dir) < deb_cache_size):
                 for file in deb_files:
@@ -265,7 +270,6 @@ def squid_part():
                         log(format%('URL_HIT', url[0]))
                         new_url = yum_part(url[0], query, 'deb') + new_url
                         log(format%('NEW_URL', new_url.strip('\n')))
-                        bucket.remove(md5id)
                         break
         # Flush the new url to stdout for squid to process
         sys.stdout.write(new_url)
@@ -322,6 +326,6 @@ def cmd_squid_part():
 
 if __name__ == '__main__':
     # For testing on command line, use this function
-    cmd_squid_part()
+    #cmd_squid_part()
     # For testing with squid, use this function
-    #squid_part()
+    squid_part()

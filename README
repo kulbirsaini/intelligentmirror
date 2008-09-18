@@ -1,18 +1,16 @@
 1. NAME
-       intelligentmirror - Squid redirector plugin for caching rpm packages.
+       intelligentmirror - Squid url rewriter plugin for caching rpm/deb packages.
 
 2. SYNOPSIS
-       To be used to with squid as a redirector plugin.
+       To be used to with squid as a url rewriter plugin.
 
 3. DESCRIPTION
-       IntelligentMirror  can  be  used  to  create a mirror of static HTTP content on your local network. When you download something (say a
-       software package) from Internet, it is stored/cached on a local machine on your network and subsequent downloads  of  that  particular
-       software  package  are supplied from the storage/cache of the local machine. This facilitate the efficient usage of bandwidth and also
-       reduces the average download time. IntelligentMirror can also do pre-fetching of RPM packages from fedora repositories spread all over
-       the  world  and  can  also  pre-populate the local repo with popular packages like mplayer, vlc, gstreamer which are normally accessed
-       immediately after a fresh install.
+       IntelligentMirror  can be used to create a mirror of static HTTP content on your local network. When you download some-
+       thing (say a software package) from Internet, it is stored/cached on a local machine on  your  network  and  subsequent
+       downloads of that particular software package are supplied from the storage/cache of the local machine. This facilitate
+       the efficient usage of bandwidth and also reduces the average download time.
 
-4. SYNOPSIS
+4. DEPENDENCIES
        1. python
        2. python-urlgrabber
        3. python-iniparse
@@ -21,67 +19,132 @@
        6. httpd
 
 5. CONFIGURATION
-       To configure intelligentmirror, you need to configure Apache Webserver (httpd), Proxy Server (squid), and the global intelligentmirror
-       configuration file. Below are the steps to configure intelligentmirror.
+       To configure intelligentmirror, you need to configure Apache Webserver (httpd), Proxy Server (squid),  and  the  global
+       intelligentmirror configuration file. Below are the steps to configure intelligentmirror.
 
 5.1 Squid Configuration
-       To  configure  squid  to  use  intelligentmirror as a redirector, you need to add the following lines to your sqiud configuration file
-       (generally found in /etc/squid/squid.conf )
+       To  configure  squid to use intelligentmirror as a url rewriter, you need to add the following lines to your sqiud con-
+       figuration file (generally found at /etc/squid/squid.conf )
 
-       # --BEGIN-- intelligentmirror config #
-       redirect_program /usr/bin/python /etc/squid/intelligentmirror/intelligentmirror.py
-       redirect_children 20
-       acl rpms urlpath_regex \.rpm$
-       cache deny rpms
-       # --END-- intelligentmirror config #
+       # --BEGIN-- intelligentmirror config for squid #
+       url_rewrite_program /usr/bin/python /etc/squid/intelligentmirror/intelligentmirror.py
+       url_rewrite_children 15
+       acl intelligentmirror urlpath_regex -i \.rpm$
+       acl intelligentmirror urlpath_regex -i \.deb$
+       url_rewrite_access allow intelligentmirror
+       url_rewrite_access deny all
+       cache deny intelligentmirror
+       redirector_bypass on
+       # --END-- intelligentmirror config for squid #
 
 5.2 Apache Webserver (httpd) Configuration
        Config file : /etc/httpd/conf.d/intelligentmirror.conf
-       Modify the configuration file the way you want and reload the httpd service using the following command.
+       Modify the configuration file the way you want and reload the httpd service using the following command. You  need  not
+       do this if you are going with default directories.
 
-       [root@localhost root]# service httpd reload
+       [root@localhost root]# service httpd reload # (as root)
 
 5.3 intelligentmirror Global Configuration
        Config file : /etc/intelligentmirror.conf
 
-       cache_dir
-              Directory to cache rpm packages.
+       base_dir
+              Base directory for caching the packages. All other directory paths should be relative to base_dir.
               Default : /var/spool/squid/intelligentmirror/
 
+       enable_rpm_cache
+              This option enables the caching of rpm packages. It is assumed that all rpm packages will have a .rpm extension.
+              This option’s value can be either 0 or 1.
+              Default : 1
+
+       rpm_cache_dir
+              Directory to cach rpm packages. Directory name relative to base_dir.  e.g. if you specify rpm_cache_dir  =  rpm,
+              actual path for caching rpm packages would be /var/spool/squid/intelligentmirror/rpm/ .
+              Default : rpm
+
+       rpm_cache_size
+              Maximum total size of caching directory. 0 for unlimited. This size is in Mega Bytes.  e.g. rpm_cache_size = 200
+              will limit your cache size to 200MB.
+              NOTE : Don’t use rpm_cache_size = 200MB. Don’t append MB.
+              Default : 0
+
+       max_rpm_size
+              RPMs with size more than max_rpm_size will not be cached. This size is in  kilo  bytes.   Use  0  for  unlimited
+              caching. e.g. max_rpm_size = 10000. Only rpms with size less than 10MB (10000KB) will be cached.
+              NOTE : Don’t use max_rpm_size = 10000KB. Don’t append KB.
+              Default : 0
+
+       min_rpm_size
+              RPMs  with size less than min_rpm_size will not be cached. This size is in kilo bytes. Use 0 for no lower limit.
+              e.g. min_rpm_size = 10. Only rpms with size more than 10KB will be cached.
+              NOTE : Don’t use min_rpm_size = 10KB. Don’t append KB.
+              Default : 0
+
+       enable_deb_cache
+              This option enables the caching of debian packages. It is assumed that all debian packages  will  have  an  .deb
+              extension.This option’s value can be either 0 or 1.
+              Default : 1
+
+       deb_cache_dir
+              Directory  to  cach  debian  packages. Directory name relative to base_dir.  e.g. if you specify deb_cache_dir =
+              deb, actual path for caching deb packages would be /var/spool/squid/intelligentmirror/deb/ .
+              Default : deb
+
+       deb_cache_size
+              Maximum total size of caching directory. 0 for unlimited. This size is in Mega Bytes.  e.g. deb_cache_size = 200
+              will limit your cache size to 200MB.
+              NOTE : Don’t use deb_cache_size = 200MB. Don’t append MB.
+              Default : 0
+
+       max_deb_size
+              DEBs  with  size  more  than  max_deb_size  will not be cached. This size is in kilo bytes.  Use 0 for unlimited
+              caching. e.g. max_deb_size = 10000. Only debs with size less than 10MB (10000KB) will be cached.
+              NOTE : Don’t use max_deb_size = 10000KB. Don’t append KB.
+              Default : 0
+
+       min_deb_size
+              DEBs with size less than min_rpm_size will not be cached. This size is in kilo bytes.  Use 0 for no lower limit.
+              e.g. min_deb_size = 10. Only debs with size more than 10KB will be cached.
+              NOTE : Don’t use min_deb_size = 10KB. Don’t append KB.
+              Default : 0
+
        temp_dir
-              Directory to store partitially cached rpm packages.
-              Default : /var/spool/sqiud/intelligentmirror/temp
-
-       http_proxy
-              Proxy server to use for caching rpm packages via http.
-              Default : http://localhost.localdomain:3128/
-
-       https_proxy
-              Proxy server to use for caching rpm packages via https.
-              Default : http://localhost.localdomain:3128/
-
-       ftp_proxy
-              Proxy server to use for caching rpm packages via ftp.
-              Default : http://localhost.localdomain:3128/
-
-       cache_url
-              URL to serve the cached rpm packages. If you change  this,  don’t  forget  to  modify  /etc/httpd/conf.d/intelligentmirror.conf
-              accordingly and reload the httpd service.
-              Default : http://localhost.localdomain/intelligentmirror/
+              Directory  to  store  partially  downloaded  packages. Directory name relative to base_dir.  e.g. if you specify
+              temp_dir = tmp, actual path for storing partially downloaded packages would be  /var/spool/squid/intelligentmir-
+              ror/tmp/ .
+              Default : tmp
 
        logfile
-              File to log all the intelligentmirror activities.
+              File where intelligentmirror log will be stored.
               Default : /var/log/squid/intelligentmirror.log
 
-       rpc_server
-              XMLRPCServer  is  used for memory sharing across different instances of intelligentmirror. Leave these settings as it is if you
-              don’t have a fair idea of XMLRPCServer.
+       cache_host
+              The  hostname  or IP address of the system on which caching is being done. This is used for serving the packages
+              from the cache. The cached packages will be available at http://cache_host/intelligentmirror/ . Please don’t use
+              http://  or  slashes  (/).   Just  specify  the  domain  name or IP address.  Example : localhost.localdomain or
+              proxy.example.com or 192.168.36.204 or <Proxy_Server_IP_OR_Domain>
+              Default : localhost.localdomain
+
+       rpc_host
+              XMLRPCServer is used for memory sharing across different instances of intelligentmirror. Leave these settings as
+              it is if you don’t have a fair idea of XMLRPCServer. This will be same as cache_host in almost all the cases.
               Default : localhost.localdomain
 
        rpc_port
-              Please make sure this port is not currently in use. If it is in use by some other program, change this to some port above  1024
-              which is not in use by any other program.
+              Please  make  sure this port is not currently in use. If it is in use by some other program, change this to some
+              port above 1024 which is not in use by any other program.
               Default : 9000
+
+       proxy  Proxy for http, https, ftp content.
+              Example : proxy = http://<Proxy_Server_IP_OR_Domain>:<Proxy_port>/ or http://proxy.example.com:3128/
+              Default : http://localhost.localdomain:3128/
+
+       proxy_username
+              If the above proxy requires authentication, please specify the username.
+              Default : <blank>
+
+       proxy_password
+              If the above proxy requires authentication, please specify the password.
+              Default : <blank>
 
 6. FILES
        /etc/intelligentmirror.conf
@@ -96,7 +159,7 @@
        How to configure squid : http://fedora.co.in/content/how-configure-squid-proxy-server
        How to write custorm squid redirector in python : http://fedora.co.in/content/writing-custom-redirector-plugin-squid-python
 
-8. AUTHORS
+8. AUTHOR
        Kulbir Saini <kulbirsaini@students.iiit.ac.in>
 
 9. BUGS
