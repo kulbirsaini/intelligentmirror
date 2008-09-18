@@ -44,7 +44,7 @@ touch ${RPM_BUILD_ROOT}%{prefix}/var/log/squid/intelligentmirror.log
 
 %clean
 rm -rf $RPM_BUILD_ROOT
-rm -rf $RPM_BUILD_DIR/%{name}-%{version}-%{release}
+rm -rf $RPM_BUILD_DIR/%{name}-%{version}
 
 %files
 %{prefix}/etc/squid/intelligentmirror/
