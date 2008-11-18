@@ -50,7 +50,7 @@ b) Untar the package.
 c) Go to intelligentmirror-x.x directory
 [root@localhost root]# cd intelligentmirror-x.x
 
-d) Copy intelligentmirror_sysconfing.conf to /etc/intelligentmirror.conf
+d) Copy intelligentmirror_sysconfig.conf to /etc/intelligentmirror.conf
 [root@localhost intelligentmirror-x.x]# cp intelligentmirror_sysconfig.conf /etc/intelligentmirror.conf
 
 e) Copy intelligentmirror_httpd.conf to /etc/httpd/conf.d/intelligentmirror.conf

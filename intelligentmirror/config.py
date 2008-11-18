@@ -579,7 +579,7 @@ class YumConf(StartupConf):
     cache_host = Option('127.0.0.1')
     rpc_host = Option('127.0.0.1')
     rpc_port = Option(9000)
-    logfile = Option('/var/spool/squid/yum/intelligentmirror.log')
+    logfile = Option('/var/spool/squid/intelligentmirror.log')
     max_logfile_size = Option(10)
     max_logfile_backups = Option(10)
     proxy = Option('http://127.0.0.1:3128')
@@ -679,10 +679,3 @@ def getOption(conf, section, name, option):
     except (NoSectionError, NoOptionError):
         return option.default
     return option.parse(val)
-
-#def main():
-#    mainconf = readMainConfig(readStartupConfig('/etc/sysconfig/intelligentmirror.conf', '/'))
-#    print mainconf
-#
-#if __name__ == '__main__':
-#    main()

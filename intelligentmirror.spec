@@ -42,7 +42,7 @@ install -m 755 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/i
 install -m 755 -o squid -g squid -d ${RPM_BUILD_ROOT}%{prefix}/var/spool/squid/intelligentmirror/tmp/
 install -m 744 -d ${RPM_BUILD_ROOT}%{prefix}/usr/share/man/man8/
 install -m 644 intelligentmirror/* -t ${RPM_BUILD_ROOT}%{prefix}/etc/squid/intelligentmirror/
-install -m 644 intelligentmirror_sysconf.conf -T ${RPM_BUILD_ROOT}%{prefix}/etc/intelligentmirror.conf
+install -m 644 intelligentmirror_sysconfig.conf -T ${RPM_BUILD_ROOT}%{prefix}/etc/intelligentmirror.conf
 install -m 644 intelligentmirror_httpd.conf -T ${RPM_BUILD_ROOT}%{prefix}/etc/httpd/conf.d/intelligentmirror.conf
 install -m 644 intelligentmirror.8.gz -T ${RPM_BUILD_ROOT}%{prefix}/usr/share/man/man8/intelligentmirror.8.gz
 install -m 744 update-im -T ${RPM_BUILD_ROOT}%{prefix}/usr/sbin/update-im
