@@ -564,7 +564,7 @@ class StartupConf(BaseConfig):
     errorlevel = IntOption(2, 0, 10)
 
     installroot = Option('/')
-    config_file_path = Option('/etc/sysconfig/intelligentmirror.conf')
+    config_file_path = Option('/etc/intelligentmirror.conf')
 
 class YumConf(StartupConf):
     '''
@@ -572,16 +572,19 @@ class YumConf(StartupConf):
 
     Note: see also options inherited from StartupConf
     '''
-    # Common config
+    # Global Options
     base_dir = Option('/var/spool/squid/intelligentmirror/')
-    temp_dir = Option('temp')
+    temp_dir = Option('tmp')
+    max_parallel_downloads = Option(30)
+    cache_host = Option('127.0.0.1')
+    rpc_host = Option('127.0.0.1')
+    rpc_port = Option(9000)
     logfile = Option('/var/spool/squid/yum/intelligentmirror.log')
-    proxy = Option('http://localhost.localdomain:3128')
+    max_logfile_size = Option(10)
+    max_logfile_backups = Option(10)
+    proxy = Option('http://127.0.0.1:3128')
     proxy_username = Option()
     proxy_password = Option()
-    rpc_host = Option('localhost.localdomain')
-    rpc_port = Option(8000)
-    cache_host = Option('localhost.localdomain')
 
     # RPM related config
     enable_rpm_cache = Option(1)
